@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/recipe.dart';
 import '../models/category.dart';
+import '../models/step.dart' as recipe_step;
 import '../services/recipe_service.dart';
 import '../services/auth_service.dart';
 import '../services/category_service.dart';
+import '../services/step_service.dart';
 
 class RecipeFormScreen extends StatefulWidget {
   final Recipe? recipe; // null pour création, recipe pour modification
@@ -20,6 +22,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
   final RecipeService _recipeService = RecipeService();
   final AuthService _authService = AuthService();
   final CategoryService _categoryService = CategoryService();
+  final StepService _stepService = StepService();
 
   // Controllers pour les champs du formulaire
   final TextEditingController _titleController = TextEditingController();
@@ -38,6 +41,8 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
   bool _isSharedEveryone = false;
   bool _isLoading = false;
   List<Category> _categories = [];
+  List<recipe_step.Step> _steps = [];
+  final List<TextEditingController> _stepControllers = [];
 
   @override
   void initState() {
@@ -54,10 +59,32 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
       
       // Peupler le formulaire après avoir chargé les catégories si on modifie une recette
       if (widget.recipe != null) {
+        await _loadSteps();
         _populateForm();
+      } else {
+        // Ajouter une étape vide pour les nouvelles recettes
+        _addStep();
       }
     } catch (e) {
       // Gérer l'erreur de chargement des catégories
+    }
+  }
+
+  Future<void> _loadSteps() async {
+    if (widget.recipe == null) return;
+    
+    try {
+      final steps = await _stepService.getStepsByRecipe(widget.recipe!.id);
+      setState(() {
+        _steps = steps;
+        _stepControllers.clear();
+        for (final step in steps) {
+          final controller = TextEditingController(text: step.description);
+          _stepControllers.add(controller);
+        }
+      });
+    } catch (e) {
+      // Gérer l'erreur de chargement des étapes
     }
   }
 
@@ -126,6 +153,39 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     _isSharedEveryone = recipe.isSharedEveryone;
   }
 
+  void _addStep() {
+    setState(() {
+      _stepControllers.add(TextEditingController());
+    });
+  }
+
+  void _removeStep(int index) {
+    setState(() {
+      if (_stepControllers.length > 1) { // Toujours garder au moins une étape
+        _stepControllers[index].dispose();
+        _stepControllers.removeAt(index);
+      }
+    });
+  }
+
+  void _moveStepUp(int index) {
+    if (index > 0) {
+      setState(() {
+        final controller = _stepControllers.removeAt(index);
+        _stepControllers.insert(index - 1, controller);
+      });
+    }
+  }
+
+  void _moveStepDown(int index) {
+    if (index < _stepControllers.length - 1) {
+      setState(() {
+        final controller = _stepControllers.removeAt(index);
+        _stepControllers.insert(index + 1, controller);
+      });
+    }
+  }
+
   @override
   void dispose() {
     _titleController.dispose();
@@ -137,6 +197,9 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     _numberPeopleController.dispose();
     _tagsController.dispose();
     _internalCommentController.dispose();
+    for (final controller in _stepControllers) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -189,13 +252,17 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
         photo: widget.recipe?.photo, // TODO: Gérer l'upload de photo
       );
 
+      Recipe savedRecipe;
       if (widget.recipe == null) {
         // Création
-        await _recipeService.createRecipe(recipe);
+        savedRecipe = await _recipeService.createRecipe(recipe);
       } else {
         // Modification
-        await _recipeService.updateRecipe(recipe);
+        savedRecipe = await _recipeService.updateRecipe(recipe);
       }
+
+      // Sauvegarder les étapes
+      await _saveSteps(savedRecipe.id, currentUser);
 
       if (mounted) {
         Navigator.of(context).pop();
@@ -221,6 +288,128 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
         });
       }
     }
+  }
+
+  Future<void> _saveSteps(String recipeId, currentUser) async {
+    // Supprimer les anciennes étapes en cas de modification
+    if (widget.recipe != null) {
+      await _stepService.deleteAllStepsForRecipe(recipeId);
+    }
+
+    // Créer les nouvelles étapes
+    for (int i = 0; i < _stepControllers.length; i++) {
+      final description = _stepControllers[i].text.trim();
+      if (description.isNotEmpty) {
+        final step = recipe_step.Step(
+          id: '', // Sera généré par l'API
+          userCreated: currentUser.id,
+          dateCreated: DateTime.now(),
+          idCookbook: currentUser.cookbookId!,
+          idRecipe: recipeId,
+          description: description,
+          order: i + 1,
+        );
+        await _stepService.createStep(step);
+      }
+    }
+  }
+
+  List<Widget> _buildStepsSection() {
+    List<Widget> stepWidgets = [];
+    
+    for (int i = 0; i < _stepControllers.length; i++) {
+      stepWidgets.add(
+        Card(
+          margin: const EdgeInsets.only(bottom: 8.0),
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Numéro de l'étape
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).primaryColor,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Text(
+                      '${i + 1}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                
+                // Champ de description
+                Expanded(
+                  child: TextFormField(
+                    controller: _stepControllers[i],
+                    decoration: const InputDecoration(
+                      labelText: 'Description de l\'étape',
+                      border: OutlineInputBorder(),
+                      hintText: 'Décrivez cette étape...',
+                    ),
+                    maxLines: 2,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'La description de l\'étape est obligatoire';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                
+                // Boutons d'action
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Bouton monter
+                    IconButton(
+                      onPressed: i > 0 ? () => _moveStepUp(i) : null,
+                      icon: const Icon(Icons.keyboard_arrow_up),
+                      iconSize: 20,
+                    ),
+                    // Bouton descendre
+                    IconButton(
+                      onPressed: i < _stepControllers.length - 1 ? () => _moveStepDown(i) : null,
+                      icon: const Icon(Icons.keyboard_arrow_down),
+                      iconSize: 20,
+                    ),
+                    // Bouton supprimer
+                    IconButton(
+                      onPressed: _stepControllers.length > 1 ? () => _removeStep(i) : null,
+                      icon: const Icon(Icons.delete, color: Colors.red),
+                      iconSize: 20,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    
+    // Bouton pour ajouter une étape
+    stepWidgets.add(
+      Padding(
+        padding: const EdgeInsets.only(top: 8.0),
+        child: OutlinedButton.icon(
+          onPressed: _addStep,
+          icon: const Icon(Icons.add),
+          label: const Text('Ajouter une étape'),
+        ),
+      ),
+    );
+    
+    return stepWidgets;
   }
 
   @override
@@ -429,6 +618,19 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                   hintText: 'Séparez les tags par des virgules (ex: dessert, chocolat, facile)',
                 ),
               ),
+              const SizedBox(height: 24),
+
+              // Étapes
+              Text(
+                'Étapes de préparation',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              ..._buildStepsSection(),
+              
               const SizedBox(height: 24),
 
               // Options

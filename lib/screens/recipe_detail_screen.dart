@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../models/recipe.dart';
 import '../models/category.dart';
+import '../models/step.dart' as recipe_step;
 import '../services/recipe_service.dart';
 import '../services/ingredient_service.dart';
 import '../services/category_service.dart';
+import '../services/step_service.dart';
 
 class RecipeDetailScreen extends StatefulWidget {
   final Recipe recipe;
@@ -18,11 +20,13 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   final RecipeService _recipeService = RecipeService();
   final IngredientService _ingredientService = IngredientService();
   final CategoryService _categoryService = CategoryService();
+  final StepService _stepService = StepService();
   
   List<RecipeIngredient> _recipeIngredients = [];
   Map<String, String> _ingredientNames = {};
   Map<String, String> _ingredientArticles = {};
   List<Category> _categories = [];
+  List<recipe_step.Step> _steps = [];
   bool _isLoading = true;
 
   @override
@@ -37,16 +41,18 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     });
 
     try {
-      // Charger les ingrédients et catégories en parallèle
+      // Charger les ingrédients, catégories et étapes en parallèle
       final futures = await Future.wait([
         _recipeService.getRecipeIngredients(widget.recipe.id),
         _ingredientService.getIngredients(),
         _categoryService.getCategories(),
+        _stepService.getStepsByRecipe(widget.recipe.id),
       ]);
 
       final ingredients = futures[0] as List<RecipeIngredient>;
       final allIngredients = futures[1] as List;
       final categories = futures[2] as List<Category>;
+      final steps = futures[3] as List<recipe_step.Step>;
 
       // Précharger tous les noms et articles d'ingrédients
       final ingredientNamesMap = <String, String>{};
@@ -61,6 +67,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         _ingredientNames = ingredientNamesMap;
         _ingredientArticles = ingredientArticlesMap;
         _categories = categories;
+        _steps = steps;
         _isLoading = false;
       });
     } catch (e) {
@@ -353,6 +360,29 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
             const SizedBox(height: 16),
 
+            // Étapes
+            if (_steps.isNotEmpty) ...[
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Étapes de préparation',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      ..._steps.map((step) => _buildStepItem(step)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
             // Tags
             if (widget.recipe.tags.isNotEmpty) ...[
               Card(
@@ -460,6 +490,51 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildStepItem(recipe_step.Step step) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Numéro de l'étape
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: Theme.of(context).primaryColor,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                '${step.order}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          
+          // Description de l'étape
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 6), // Aligner avec le numéro
+                Text(
+                  step.description,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
