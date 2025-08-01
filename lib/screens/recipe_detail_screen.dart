@@ -6,6 +6,7 @@ import '../services/recipe_service.dart';
 import '../services/ingredient_service.dart';
 import '../services/category_service.dart';
 import '../services/step_service.dart';
+import 'recipe_form_screen.dart';
 
 class RecipeDetailScreen extends StatefulWidget {
   final Recipe recipe;
@@ -144,8 +145,17 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         title: Text(widget.recipe.title),
         actions: [
           IconButton(
-            onPressed: () {
-              // TODO: Navigate to edit recipe
+            onPressed: () async {
+              final result = await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => RecipeFormScreen(recipe: widget.recipe),
+                ),
+              );
+              
+              // Recharger les données si la recette a été modifiée
+              if (result == true) {
+                _loadRecipeData();
+              }
             },
             icon: const Icon(Icons.edit),
             tooltip: 'Modifier',

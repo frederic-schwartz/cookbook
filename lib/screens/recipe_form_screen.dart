@@ -265,7 +265,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
       await _saveSteps(savedRecipe.id, currentUser);
 
       if (mounted) {
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(true); // Retourner true pour indiquer une sauvegarde réussie
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(widget.recipe == null ? 'Recette créée avec succès' : 'Recette modifiée avec succès'),
