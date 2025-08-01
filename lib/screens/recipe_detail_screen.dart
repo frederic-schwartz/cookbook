@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../models/recipe.dart';
+import '../models/category.dart';
 import '../services/recipe_service.dart';
 import '../services/ingredient_service.dart';
+import '../services/category_service.dart';
 
 class RecipeDetailScreen extends StatefulWidget {
   final Recipe recipe;
@@ -15,35 +17,50 @@ class RecipeDetailScreen extends StatefulWidget {
 class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   final RecipeService _recipeService = RecipeService();
   final IngredientService _ingredientService = IngredientService();
+  final CategoryService _categoryService = CategoryService();
   
   List<RecipeIngredient> _recipeIngredients = [];
   Map<String, String> _ingredientNames = {};
+  Map<String, String> _ingredientArticles = {};
+  List<Category> _categories = [];
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadRecipeIngredients();
+    _loadRecipeData();
   }
 
-  Future<void> _loadRecipeIngredients() async {
+  Future<void> _loadRecipeData() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      final ingredients = await _recipeService.getRecipeIngredients(widget.recipe.id);
-      
-      // Précharger tous les noms d'ingrédients
-      final allIngredients = await _ingredientService.getIngredients();
+      // Charger les ingrédients et catégories en parallèle
+      final futures = await Future.wait([
+        _recipeService.getRecipeIngredients(widget.recipe.id),
+        _ingredientService.getIngredients(),
+        _categoryService.getCategories(),
+      ]);
+
+      final ingredients = futures[0] as List<RecipeIngredient>;
+      final allIngredients = futures[1] as List;
+      final categories = futures[2] as List<Category>;
+
+      // Précharger tous les noms et articles d'ingrédients
       final ingredientNamesMap = <String, String>{};
+      final ingredientArticlesMap = <String, String>{};
       for (final ingredient in allIngredients) {
         ingredientNamesMap[ingredient.id] = ingredient.singularName;
+        ingredientArticlesMap[ingredient.id] = ingredient.article;
       }
       
       setState(() {
         _recipeIngredients = ingredients;
         _ingredientNames = ingredientNamesMap;
+        _ingredientArticles = ingredientArticlesMap;
+        _categories = categories;
         _isLoading = false;
       });
     } catch (e) {
@@ -60,6 +77,15 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     } else {
       return 'Ingrédient inconnu';
     }
+  }
+
+  String _getIngredientArticle(String ingredientId) {
+    return _ingredientArticles[ingredientId] ?? '';
+  }
+
+  String _getCategoryName(int? categoryId) {
+    if (categoryId == null) return 'Non catégorisé';
+    return _categoryService.getCategoryPath(_categories, categoryId);
   }
 
   String _formatDuration(int? minutes) {
@@ -212,6 +238,12 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                         _formatDuration(widget.recipe.restingTime),
                       ),
                     ],
+                    const SizedBox(height: 16),
+                    _buildInfoItem(
+                      Icons.category,
+                      'Catégorie',
+                      _getCategoryName(widget.recipe.idCategory),
+                    ),
                   ],
                 ),
               ),
@@ -272,6 +304,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                     else
                       ..._recipeIngredients.map((recipeIngredient) {
                         final ingredientName = _getIngredientName(recipeIngredient.idIngredient);
+                        final ingredientArticle = _getIngredientArticle(recipeIngredient.idIngredient);
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 4.0),
                           child: Row(
@@ -294,8 +327,8 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                                         text: '${recipeIngredient.quantity} ${recipeIngredient.unit ?? ''} ',
                                         style: const TextStyle(fontWeight: FontWeight.bold),
                                       ),
-                                      if (recipeIngredient.article != null)
-                                        TextSpan(text: '${recipeIngredient.article} '),
+                                      if (ingredientArticle.isNotEmpty)
+                                        TextSpan(text: '$ingredientArticle '),
                                       TextSpan(text: ingredientName),
                                       if (recipeIngredient.additionalInformation != null)
                                         TextSpan(

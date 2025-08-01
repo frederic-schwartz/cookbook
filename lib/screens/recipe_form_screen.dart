@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/recipe.dart';
+import '../models/category.dart';
 import '../services/recipe_service.dart';
 import '../services/auth_service.dart';
+import '../services/category_service.dart';
 
 class RecipeFormScreen extends StatefulWidget {
   final Recipe? recipe; // null pour création, recipe pour modification
@@ -17,6 +19,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final RecipeService _recipeService = RecipeService();
   final AuthService _authService = AuthService();
+  final CategoryService _categoryService = CategoryService();
 
   // Controllers pour les champs du formulaire
   final TextEditingController _titleController = TextEditingController();
@@ -31,21 +34,77 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
 
   int? _selectedDifficulty;
   int? _selectedCost;
+  int? _selectedCategory;
   bool _isSharedEveryone = false;
   bool _isLoading = false;
+  List<Category> _categories = [];
 
   @override
   void initState() {
     super.initState();
-    if (widget.recipe != null) {
-      _populateForm();
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final categories = await _categoryService.getCategories();
+      setState(() {
+        _categories = categories;
+      });
+      
+      // Peupler le formulaire après avoir chargé les catégories si on modifie une recette
+      if (widget.recipe != null) {
+        _populateForm();
+      }
+    } catch (e) {
+      // Gérer l'erreur de chargement des catégories
     }
+  }
+
+  List<DropdownMenuItem<int>> _buildCategoryItems() {
+    final List<DropdownMenuItem<int>> items = [];
+    final Set<int> addedIds = {};
+    
+    // Ajouter une option vide
+    items.add(const DropdownMenuItem<int>(
+      value: null,
+      child: Text('Aucune catégorie'),
+    ));
+    
+    // Ajouter les catégories parentes
+    final parentCategories = _categoryService.getParentCategories(_categories);
+    for (final parent in parentCategories) {
+      if (!addedIds.contains(parent.id)) {
+        items.add(DropdownMenuItem<int>(
+          value: parent.id,
+          child: Text(parent.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ));
+        addedIds.add(parent.id);
+      }
+      
+      // Ajouter les sous-catégories avec indentation
+      final subCategories = _categoryService.getSubCategories(_categories, parent.id);
+      for (final sub in subCategories) {
+        if (!addedIds.contains(sub.id)) {
+          items.add(DropdownMenuItem<int>(
+            value: sub.id,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 16.0),
+              child: Text('• ${sub.name}'),
+            ),
+          ));
+          addedIds.add(sub.id);
+        }
+      }
+    }
+    
+    return items;
   }
 
   void _populateForm() {
     final recipe = widget.recipe!;
     _titleController.text = recipe.title;
-    _subtitleController.text = recipe.subtitle ?? '';
+    _subtitleController.text = recipe.subtitle ?? '';  
     _presentationController.text = recipe.presentationText ?? '';
     _preparationTimeController.text = recipe.preparationTime?.toString() ?? '';
     _cookingTimeController.text = recipe.cookingTime?.toString() ?? '';
@@ -55,6 +114,15 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     _internalCommentController.text = recipe.internalComment ?? '';
     _selectedDifficulty = recipe.difficultyLevel;
     _selectedCost = recipe.cost;
+    
+    // Vérifier si la catégorie existe dans la liste des catégories disponibles
+    if (recipe.idCategory != null && 
+        _categories.any((category) => category.id == recipe.idCategory)) {
+      _selectedCategory = recipe.idCategory;
+    } else {
+      _selectedCategory = null; // Réinitialiser si la catégorie n'existe pas
+    }
+    
     _isSharedEveryone = recipe.isSharedEveryone;
   }
 
@@ -109,7 +177,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
         subtitle: _subtitleController.text.trim().isEmpty ? null : _subtitleController.text.trim(),
         preparationTime: _preparationTimeController.text.isEmpty ? null : int.tryParse(_preparationTimeController.text),
         cookingTime: _cookingTimeController.text.isEmpty ? null : int.tryParse(_cookingTimeController.text),
-        idCategory: widget.recipe?.idCategory, // TODO: Gérer la sélection de catégorie
+        idCategory: _selectedCategory,
         difficultyLevel: _selectedDifficulty,
         tags: tags,
         cost: _selectedCost,
@@ -331,6 +399,22 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                 onChanged: (value) {
                   setState(() {
                     _selectedCost = value;
+                  });
+                },
+              ),
+              const SizedBox(height: 12),
+
+              // Catégorie
+              DropdownButtonFormField<int>(
+                value: _selectedCategory,
+                decoration: const InputDecoration(
+                  labelText: 'Catégorie',
+                  border: OutlineInputBorder(),
+                ),
+                items: _buildCategoryItems(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedCategory = value;
                   });
                 },
               ),

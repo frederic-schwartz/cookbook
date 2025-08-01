@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/recipe_service.dart';
+import '../services/category_service.dart';
 import '../models/recipe.dart';
+import '../models/category.dart';
 import 'login_screen.dart';
-import 'recipes_list_screen.dart';
 import 'recipe_detail_screen.dart';
-import 'ingredients_management_screen.dart';
-import 'categories_management_screen.dart';
+import 'recipe_form_screen.dart';
 
 class MenuScreen extends StatefulWidget {
   const MenuScreen({super.key});
@@ -18,26 +18,26 @@ class MenuScreen extends StatefulWidget {
 class _MenuScreenState extends State<MenuScreen> {
   final AuthService _authService = AuthService();
   final RecipeService _recipeService = RecipeService();
-  List<Recipe> _recentRecipes = [];
+  final CategoryService _categoryService = CategoryService();
+  final TextEditingController _searchController = TextEditingController();
+  
+  List<Recipe> _allRecipes = [];
+  List<Recipe> _filteredRecipes = [];
+  List<Category> _categories = [];
   bool _isLoading = true;
-  bool _hasShownDebugInfo = false;
   String? _errorMessage;
+  int? _selectedCategoryFilter;
 
   @override
   void initState() {
     super.initState();
+    _loadData();
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (!_hasShownDebugInfo) {
-      _hasShownDebugInfo = true;
-      // Delay to ensure Scaffold is ready
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _loadData();
-      });
-    }
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -45,20 +45,36 @@ class _MenuScreenState extends State<MenuScreen> {
       _isLoading = true;
       _errorMessage = null;
     });
-    
-    await _loadRecentRecipes();
 
-    setState(() {
-      _isLoading = false;
-    });
+    try {
+      final futures = await Future.wait([
+        _recipeService.getAllRecipes(),
+        _categoryService.getCategories(),
+      ]);
+
+      final recipes = futures[0] as List<Recipe>;
+      final categories = futures[1] as List<Category>;
+
+      setState(() {
+        _allRecipes = recipes;
+        _filteredRecipes = recipes;
+        _categories = categories;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Erreur lors du chargement des données: $e';
+        _isLoading = false;
+      });
+    }
   }
 
-  Future<void> _loadRecentRecipes() async {
+  Future<void> _loadRecipes() async {
     try {
-      final recipes = await _recipeService.getRecentRecipes(limit: 10);
+      final recipes = await _recipeService.getAllRecipes();
       setState(() {
-        _recentRecipes = recipes;
-        _errorMessage = null;
+        _allRecipes = recipes;
+        _applyFilters();
       });
     } catch (e) {
       setState(() {
@@ -67,13 +83,126 @@ class _MenuScreenState extends State<MenuScreen> {
     }
   }
 
-  Future<void> _logout() async {
-    await _authService.logout();
-    if (mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-      );
+  void _filterRecipes(String query) {
+    setState(() {
+      _applyFilters();
+    });
+  }
+
+  void _applyFilters() {
+    List<Recipe> filtered = _allRecipes;
+
+    // Filtre par catégorie
+    if (_selectedCategoryFilter != null) {
+      filtered = filtered.where((recipe) => recipe.idCategory == _selectedCategoryFilter).toList();
     }
+
+    // Filtre par recherche textuelle
+    final query = _searchController.text;
+    if (query.isNotEmpty) {
+      filtered = filtered.where((recipe) {
+        return recipe.title.toLowerCase().contains(query.toLowerCase()) ||
+               (recipe.subtitle?.toLowerCase().contains(query.toLowerCase()) ?? false) ||
+               recipe.tags.any((tag) => tag.toLowerCase().contains(query.toLowerCase()));
+      }).toList();
+    }
+
+    _filteredRecipes = filtered;
+  }
+
+  Widget _buildCategoryFilter() {
+    if (_categories.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: DropdownButtonFormField<int>(
+        value: _selectedCategoryFilter,
+        decoration: InputDecoration(
+          labelText: 'Filtrer par catégorie',
+          prefixIcon: const Icon(Icons.category),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        ),
+        items: [
+          const DropdownMenuItem<int>(
+            value: null,
+            child: Text('Toutes les catégories'),
+          ),
+          ..._buildCategoryItems(),
+        ],
+        onChanged: (value) {
+          setState(() {
+            _selectedCategoryFilter = value;
+            _applyFilters();
+          });
+        },
+      ),
+    );
+  }
+
+  List<DropdownMenuItem<int>> _buildCategoryItems() {
+    final List<DropdownMenuItem<int>> items = [];
+    
+    // Ajouter les catégories parentes
+    final parentCategories = _categoryService.getParentCategories(_categories);
+    for (final parent in parentCategories) {
+      items.add(DropdownMenuItem<int>(
+        value: parent.id,
+        child: Text(parent.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+      ));
+      
+      // Ajouter les sous-catégories avec indentation
+      final subCategories = _categoryService.getSubCategories(_categories, parent.id);
+      for (final sub in subCategories) {
+        items.add(DropdownMenuItem<int>(
+          value: sub.id,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 16.0),
+            child: Text('• ${sub.name}'),
+          ),
+        ));
+      }
+    }
+    
+    return items;
+  }
+
+  void _navigateToRecipeDetail(Recipe recipe) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RecipeDetailScreen(recipe: recipe),
+      ),
+    ).then((_) => _loadRecipes()); // Refresh list when returning
+  }
+
+  void _navigateToAddRecipe() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const RecipeFormScreen(),
+      ),
+    ).then((_) => _loadRecipes()); // Refresh list when returning
+  }
+
+  void _navigateToEditRecipe(Recipe recipe) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RecipeFormScreen(recipe: recipe),
+      ),
+    ).then((_) => _loadRecipes()); // Refresh list when returning
+  }
+
+  String _formatDuration(int? minutes) {
+    if (minutes == null || minutes == 0) return '';
+    if (minutes < 60) return '${minutes}min';
+    final hours = minutes ~/ 60;
+    final remainingMinutes = minutes % 60;
+    if (remainingMinutes == 0) return '${hours}h';
+    return '${hours}h${remainingMinutes}min';
   }
 
   void _showLogoutDialog() {
@@ -89,9 +218,14 @@ class _MenuScreenState extends State<MenuScreen> {
               child: const Text('Annuler'),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.of(context).pop();
-                _logout();
+                await _authService.logout();
+                if (mounted) {
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(builder: (context) => const LoginScreen()),
+                  );
+                }
               },
               child: const Text('Déconnexion'),
             ),
@@ -105,171 +239,311 @@ class _MenuScreenState extends State<MenuScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Cookbook'),
+        title: const Text('Mes Recettes'),
         actions: [
+          IconButton(
+            onPressed: _navigateToAddRecipe,
+            icon: const Icon(Icons.add),
+            tooltip: 'Ajouter une recette',
+          ),
           IconButton(
             onPressed: _showLogoutDialog,
             icon: const Icon(Icons.logout),
+            tooltip: 'Déconnexion',
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadData,
-              child: ListView(
-                padding: const EdgeInsets.all(16.0),
-                children: [
-                  Text(
-                    'Dernières recettes ajoutées',
-                    style: Theme.of(context).textTheme.headlineSmall,
+      body: Column(
+        children: [
+          // Barre de recherche
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Rechercher une recette...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        onPressed: () {
+                          _searchController.clear();
+                          _filterRecipes('');
+                        },
+                        icon: const Icon(Icons.clear),
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onChanged: _filterRecipes,
+            ),
+          ),
+          
+          // Filtre par catégorie
+          const SizedBox(height: 8),
+          _buildCategoryFilter(),
+          const SizedBox(height: 16),
+          
+          // Message d'erreur
+          if (_errorMessage != null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Card(
+                color: Colors.red[50],
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.red[700]),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          _errorMessage!,
+                          style: TextStyle(color: Colors.red[700]),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                  if (_errorMessage != null) ...[
-                    Card(
-                      color: Colors.red[50],
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Row(
+                ),
+              ),
+            ),
+          
+          // Liste des recettes
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : _filteredRecipes.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.error_outline, color: Colors.red[700]),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                _errorMessage!,
-                                style: TextStyle(color: Colors.red[700]),
+                            Icon(
+                              Icons.restaurant_menu,
+                              size: 64,
+                              color: Colors.grey[400],
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _searchController.text.isNotEmpty
+                                  ? 'Aucune recette trouvée'
+                                  : 'Aucune recette disponible',
+                              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _searchController.text.isNotEmpty
+                                  ? 'Essayez avec d\'autres mots-clés'
+                                  : 'Commencez par ajouter votre première recette',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                color: Colors.grey[500],
                               ),
                             ),
                           ],
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-                  if (_recentRecipes.isEmpty)
-                    Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Center(
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.restaurant_menu,
-                                size: 48,
-                                color: Colors.grey[400],
-                              ),
-                              const SizedBox(height: 16),
-                              Text(
-                                'Aucune recette trouvée',
-                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  color: Colors.grey[600],
+                      )
+                    : RefreshIndicator(
+                        onRefresh: _loadRecipes,
+                        child: ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          itemCount: _filteredRecipes.length,
+                          itemBuilder: (context, index) {
+                            final recipe = _filteredRecipes[index];
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              child: InkWell(
+                                onTap: () => _navigateToRecipeDetail(recipe),
+                                borderRadius: BorderRadius.circular(12),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // Titre et actions
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  recipe.title,
+                                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                                if (recipe.subtitle != null) ...[
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    recipe.subtitle!,
+                                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                                      color: Colors.grey[600],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
+                                          PopupMenuButton<String>(
+                                            onSelected: (value) {
+                                              if (value == 'edit') {
+                                                _navigateToEditRecipe(recipe);
+                                              } else if (value == 'delete') {
+                                                _showDeleteDialog(recipe);
+                                              }
+                                            },
+                                            itemBuilder: (context) => [
+                                              const PopupMenuItem(
+                                                value: 'edit',
+                                                child: Row(
+                                                  children: [
+                                                    Icon(Icons.edit, size: 20),
+                                                    SizedBox(width: 8),
+                                                    Text('Modifier'),
+                                                  ],
+                                                ),
+                                              ),
+                                              const PopupMenuItem(
+                                                value: 'delete',
+                                                child: Row(
+                                                  children: [
+                                                    Icon(Icons.delete, color: Colors.red, size: 20),
+                                                    SizedBox(width: 8),
+                                                    Text('Supprimer', style: TextStyle(color: Colors.red)),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                      
+                                      // Métadonnées (temps, difficulté, etc.)
+                                      const SizedBox(height: 12),
+                                      Wrap(
+                                        spacing: 12,
+                                        runSpacing: 8,
+                                        children: [
+                                          if (recipe.preparationTime != null || recipe.cookingTime != null)
+                                            _buildInfoChip(
+                                              Icons.timer,
+                                              '${_formatDuration(recipe.preparationTime)} ${_formatDuration(recipe.cookingTime)}'.trim(),
+                                            ),
+                                          if (recipe.difficultyLevel != null)
+                                            _buildInfoChip(
+                                              Icons.trending_up,
+                                              'Niveau ${recipe.difficultyLevel}',
+                                            ),
+                                          if (recipe.numberPeople != null)
+                                            _buildInfoChip(
+                                              Icons.people,
+                                              '${recipe.numberPeople} pers.',
+                                            ),
+                                        ],
+                                      ),
+                                      
+                                      // Tags
+                                      if (recipe.tags.isNotEmpty) ...[
+                                        const SizedBox(height: 8),
+                                        Wrap(
+                                          spacing: 6,
+                                          runSpacing: 4,
+                                          children: recipe.tags.take(3).map((tag) => 
+                                            Chip(
+                                              label: Text(
+                                                tag,
+                                                style: Theme.of(context).textTheme.bodySmall,
+                                              ),
+                                              backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                                              side: BorderSide.none,
+                                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                              visualDensity: VisualDensity.compact,
+                                            )
+                                          ).toList(),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
                                 ),
                               ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Commencez par ajouter vos premières recettes',
-                                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                  color: Colors.grey[500],
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ],
-                          ),
+                            );
+                          },
                         ),
                       ),
-                    )
-                  else
-                    ..._recentRecipes.map((recipe) => Card(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          child: ListTile(
-                            title: Text(recipe.title),
-                            subtitle: recipe.subtitle != null ? Text(recipe.subtitle!) : null,
-                            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                            onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) => RecipeDetailScreen(recipe: recipe),
-                                ),
-                              );
-                            },
-                          ),
-                        )),
-                  const SizedBox(height: 32),
-                  Text(
-                    'Gestion',
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 16),
-                  _buildMenuCard(
-                    context,
-                    'Gestion des recettes',
-                    'Créer, modifier et organiser vos recettes',
-                    Icons.restaurant_menu,
-                    () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const RecipesListScreen()),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  _buildMenuCard(
-                    context,
-                    'Gestion des ingrédients',
-                    'Ajouter et modifier la liste des ingrédients',
-                    Icons.inventory_2,
-                    () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const IngredientsManagementScreen()),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  _buildMenuCard(
-                    context,
-                    'Gestion des catégories',
-                    'Organiser et modifier les catégories de recettes',
-                    Icons.category,
-                    () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const CategoriesManagementScreen()),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildMenuCard(
-    BuildContext context,
-    String title,
-    String subtitle,
-    IconData icon,
-    VoidCallback onTap,
-  ) {
-    return Card(
-      child: ListTile(
-        leading: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(
-            icon,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-        ),
-        title: Text(title),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-        onTap: onTap,
+  Widget _buildInfoChip(IconData icon, String text) {
+    if (text.isEmpty) return const SizedBox.shrink();
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: BorderRadius.circular(12),
       ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: Colors.grey[700]),
+          const SizedBox(width: 4),
+          Text(
+            text,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Colors.grey[700],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showDeleteDialog(Recipe recipe) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Supprimer la recette'),
+          content: Text('Êtes-vous sûr de vouloir supprimer "${recipe.title}" ?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Annuler'),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                
+                try {
+                  await _recipeService.deleteRecipe(recipe.id);
+                  _loadRecipes();
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Recette supprimée')),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Erreur lors de la suppression: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
+              child: const Text('Supprimer'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

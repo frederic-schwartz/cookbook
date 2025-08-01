@@ -14,8 +14,6 @@ dependencies:
   cupertino_icons: ^1.0.8
   http: ^1.2.0
   shared_preferences: ^2.2.2
-  sqflite: ^2.3.0
-  path: ^1.8.3
   provider: ^6.1.1
 
 dev_dependencies:
@@ -35,9 +33,6 @@ flutter:
   
 assets:
   - assets/images/
-  - lib/category_fr.json
-  - lib/resources/
-  - resources/
 
   
   # fonts:

@@ -1,52 +1,55 @@
 class Category {
   final int id;
+  final String userCreated;
+  final DateTime dateCreated;
+  final String? userUpdated;
+  final DateTime? dateUpdated;
   final String name;
-  final int? parentId;
-  final List<Category> subcategories;
+  final int? idParent;
+  final String? description;
 
   Category({
     required this.id,
+    required this.userCreated,
+    required this.dateCreated,
+    this.userUpdated,
+    this.dateUpdated,
     required this.name,
-    this.parentId,
-    this.subcategories = const [],
+    this.idParent,
+    this.description,
   });
 
   factory Category.fromJson(Map<String, dynamic> json) {
     return Category(
       id: json['id'],
+      userCreated: json['user_created'],
+      dateCreated: DateTime.parse(json['date_created']),
+      userUpdated: json['user_updated'],
+      dateUpdated: json['date_updated'] != null 
+          ? DateTime.parse(json['date_updated']) 
+          : null,
       name: json['name'],
-      parentId: json['parent_id'],
-      subcategories: json['subcategories'] != null
-          ? (json['subcategories'] as List).map((e) => Category.fromJson(e)).toList()
-          : [],
+      idParent: json['id_parent'],
+      description: json['description'],
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'user_created': userCreated,
+      'date_created': dateCreated.toIso8601String(),
+      'user_updated': userUpdated,
+      'date_updated': dateUpdated?.toIso8601String(),
       'name': name,
-      'parent_id': parentId,
-      'subcategories': subcategories.map((e) => e.toJson()).toList(),
+      'id_parent': idParent,
+      'description': description,
     };
   }
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'name': name,
-      'parent_id': parentId,
-    };
+  bool get isParentCategory => idParent == null;
+  
+  String get fullName {
+    return name;
   }
-
-  factory Category.fromMap(Map<String, dynamic> map) {
-    return Category(
-      id: map['id'],
-      name: map['name'],
-      parentId: map['parent_id'],
-    );
-  }
-
-  bool get isMainCategory => parentId == null;
-  bool get isSubcategory => parentId != null;
 }
