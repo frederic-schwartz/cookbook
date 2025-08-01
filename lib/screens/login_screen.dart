@@ -104,6 +104,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           controller: _emailController,
                           keyboardType: TextInputType.emailAddress,
                           textInputAction: TextInputAction.next,
+                          autocorrect: false,
+                          enableSuggestions: false,
                           decoration: const InputDecoration(
                             labelText: 'Email',
                             prefixIcon: Icon(Icons.email_outlined),
@@ -115,6 +117,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           controller: _passwordController,
                           obscureText: true,
                           textInputAction: TextInputAction.done,
+                          autocorrect: false,
+                          enableSuggestions: false,
                           onSubmitted: (_) => _login(),
                           decoration: const InputDecoration(
                             labelText: 'Mot de passe',

@@ -138,6 +138,22 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     return filledEuros + emptyEuros;
   }
 
+  String _formatQuantity(String quantity) {
+    // Essayer de parser comme un nombre
+    final double? numericValue = double.tryParse(quantity);
+    if (numericValue != null) {
+      // Si c'est un entier, afficher sans décimales
+      if (numericValue == numericValue.roundToDouble()) {
+        return numericValue.toInt().toString();
+      } else {
+        // Pour les décimales, supprimer les zéros inutiles à la fin
+        return numericValue.toString().replaceAll(RegExp(r'\.?0+$'), '');
+      }
+    }
+    // Si ce n'est pas un nombre, retourner tel quel
+    return quantity;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -341,7 +357,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                                     style: Theme.of(context).textTheme.bodyMedium,
                                     children: [
                                       TextSpan(
-                                        text: '${recipeIngredient.quantity} ${recipeIngredient.unit ?? ''} ',
+                                        text: '${_formatQuantity(recipeIngredient.quantity)} ${recipeIngredient.unit ?? ''} ',
                                         style: const TextStyle(fontWeight: FontWeight.bold),
                                       ),
                                       if (ingredientArticle.isNotEmpty)
