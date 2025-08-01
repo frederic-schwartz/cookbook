@@ -134,7 +134,7 @@ class _CategoriesManagementScreenState extends State<CategoriesManagementScreen>
                 try {
                   if (isEditing) {
                     final updatedCategory = Category(
-                      id: category!.id,
+                      id: category.id,
                       name: name,
                       parentId: category.parentId,
                     );
