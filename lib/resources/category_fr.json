@@ -1,0 +1,79 @@
+{
+  "categories": [
+    {
+      "name": "Entrées",
+      "subcategories": [
+        "Froides",
+        "Chaudes"
+      ]
+    },
+    {
+      "name": "Plats principaux",
+      "subcategories": [
+        "Viande",
+        "Poisson & fruits de mer",
+        "Végétarien",
+        "Vegan",
+        "Pâtes & riz",
+        "One-pot",
+        "Plats du monde"
+      ]
+    },
+    {
+      "name": "Accompagnements",
+      "subcategories": [
+        "Légumes cuisinés",
+        "Féculents",
+        "Sauces"
+      ]
+    },
+    {
+      "name": "Desserts",
+      "subcategories": [
+        "Gâteaux",
+        "Tartes & crumbles",
+        "Crèmes & mousses",
+        "Glaces & sorbets",
+        "Fruits cuisinés"
+      ]
+    },
+    {
+      "name": "Apéritifs / Tapas",
+      "subcategories": [
+        "Verrines",
+        "Feuilletés / mini-quiches",
+        "Tartinades",
+        "Bouchées froides",
+        "Bouchées chaudes"
+      ]
+    },
+    {
+      "name": "Goûter & Petits déjeuners",
+      "subcategories": [
+        "Brioches & viennoiseries",
+        "Pancakes, crêpes, gaufres",
+        "Biscuits & cookies",
+        "Barres & snacks maison"
+      ]
+    },
+    {
+      "name": "Boissons",
+      "subcategories": [
+        "Chaudes",
+        "Froides",
+        "Cocktails",
+        "Boissons fermentées"
+      ]
+    },
+    {
+      "name": "Recettes de base",
+      "subcategories": [
+        "Pâtes à tarte",
+        "Bouillons",
+        "Sauces de base",
+        "Pain & levain",
+        "Pâtes à tartiner"
+      ]
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # cookbook
 
-A new Flutter project.
+Un livre de recettes.
 
 ## Getting Started
 
