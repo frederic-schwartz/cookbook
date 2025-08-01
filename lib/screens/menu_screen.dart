@@ -187,15 +187,6 @@ class _MenuScreenState extends State<MenuScreen> {
     ).then((_) => _loadRecipes()); // Refresh list when returning
   }
 
-  void _navigateToEditRecipe(Recipe recipe) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => RecipeFormScreen(recipe: recipe),
-      ),
-    ).then((_) => _loadRecipes()); // Refresh list when returning
-  }
-
   String _formatDuration(int? minutes) {
     if (minutes == null || minutes == 0) return '';
     if (minutes < 60) return '${minutes}min';
@@ -386,37 +377,6 @@ class _MenuScreenState extends State<MenuScreen> {
                                               ],
                                             ),
                                           ),
-                                          PopupMenuButton<String>(
-                                            onSelected: (value) {
-                                              if (value == 'edit') {
-                                                _navigateToEditRecipe(recipe);
-                                              } else if (value == 'delete') {
-                                                _showDeleteDialog(recipe);
-                                              }
-                                            },
-                                            itemBuilder: (context) => [
-                                              const PopupMenuItem(
-                                                value: 'edit',
-                                                child: Row(
-                                                  children: [
-                                                    Icon(Icons.edit, size: 20),
-                                                    SizedBox(width: 8),
-                                                    Text('Modifier'),
-                                                  ],
-                                                ),
-                                              ),
-                                              const PopupMenuItem(
-                                                value: 'delete',
-                                                child: Row(
-                                                  children: [
-                                                    Icon(Icons.delete, color: Colors.red, size: 20),
-                                                    SizedBox(width: 8),
-                                                    Text('Supprimer', style: TextStyle(color: Colors.red)),
-                                                  ],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
                                         ],
                                       ),
                                       
@@ -500,50 +460,6 @@ class _MenuScreenState extends State<MenuScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  void _showDeleteDialog(Recipe recipe) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Supprimer la recette'),
-          content: Text('Êtes-vous sûr de vouloir supprimer "${recipe.title}" ?'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Annuler'),
-            ),
-            TextButton(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                
-                try {
-                  await _recipeService.deleteRecipe(recipe.id);
-                  _loadRecipes();
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Recette supprimée')),
-                    );
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Erreur lors de la suppression: $e'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                }
-              },
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text('Supprimer'),
-            ),
-          ],
-        );
-      },
     );
   }
 }
