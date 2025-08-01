@@ -19,7 +19,7 @@ class User {
       email: json['email'],
       firstName: json['first_name'],
       lastName: json['last_name'],
-      cookbookId: json['cookbook_id'],
+      cookbookId: json['id_cookbook'],
     );
   }
 
@@ -29,7 +29,7 @@ class User {
       'email': email,
       'first_name': firstName,
       'last_name': lastName,
-      'cookbook_id': cookbookId,
+      'id_cookbook': cookbookId,
     };
   }
 }

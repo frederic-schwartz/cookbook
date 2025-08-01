@@ -5,8 +5,12 @@ import 'screens/startup_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  final migrationService = DataMigrationService();
-  await migrationService.performInitialMigration();
+  try {
+    final migrationService = DataMigrationService();
+    await migrationService.performInitialMigration();
+  } catch (e) {
+    // Migration error handled silently
+  }
   
   runApp(const MyApp());
 }

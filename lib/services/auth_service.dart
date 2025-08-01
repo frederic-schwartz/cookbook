@@ -63,7 +63,7 @@ class AuthService {
       }
       return false;
     } catch (e) {
-      print('Login error: $e');
+      // Login error: $e
       return false;
     }
   }
@@ -132,7 +132,7 @@ class AuthService {
         await _saveUserDataToStorage();
       }
     } catch (e) {
-      print('Load user data error: $e');
+      // Load user data error: $e
     }
   }
 
@@ -156,6 +156,7 @@ class AuthService {
       'Content-Type': 'application/json',
       ...?headers,
     };
+    
 
     http.Response response;
     switch (method.toUpperCase()) {
@@ -171,6 +172,13 @@ class AuthService {
         break;
       case 'PUT':
         response = await http.put(
+          uri,
+          headers: requestHeaders,
+          body: body != null ? jsonEncode(body) : null,
+        );
+        break;
+      case 'PATCH':
+        response = await http.patch(
           uri,
           headers: requestHeaders,
           body: body != null ? jsonEncode(body) : null,
@@ -199,6 +207,13 @@ class AuthService {
             break;
           case 'PUT':
             response = await http.put(
+              uri,
+              headers: requestHeaders,
+              body: body != null ? jsonEncode(body) : null,
+            );
+            break;
+          case 'PATCH':
+            response = await http.patch(
               uri,
               headers: requestHeaders,
               body: body != null ? jsonEncode(body) : null,

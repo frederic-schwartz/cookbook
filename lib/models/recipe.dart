@@ -100,7 +100,7 @@ class RecipeIngredient {
   final DateTime dateCreated;
   final String? userUpdated;
   final DateTime? dateUpdated;
-  final int idIngredient;
+  final String idIngredient;
   final String quantity;
   final String? unit;
   final String? article;
@@ -130,7 +130,7 @@ class RecipeIngredient {
       dateCreated: DateTime.parse(json['date_created']),
       userUpdated: json['user_updated'],
       dateUpdated: json['date_updated'] != null ? DateTime.parse(json['date_updated']) : null,
-      idIngredient: json['id_ingredient'],
+      idIngredient: json['id_ingredient'].toString(),
       quantity: json['quantity'],
       unit: json['unit'],
       article: json['article'],

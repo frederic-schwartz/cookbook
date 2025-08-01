@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
-import '../models/ingredient.dart';
 import '../models/category.dart';
 
 class DatabaseService {
@@ -36,14 +35,7 @@ class DatabaseService {
       )
     ''');
 
-    await db.execute('''
-      CREATE TABLE ingredients (
-        id INTEGER PRIMARY KEY,
-        name TEXT NOT NULL,
-        category TEXT,
-        unit TEXT
-      )
-    ''');
+    // Table des ingrédients supprimée - maintenant gérés par Directus
   }
 
   // Categories methods
@@ -96,49 +88,7 @@ class DatabaseService {
     );
   }
 
-  // Ingredients methods
-  Future<int> insertIngredient(Ingredient ingredient) async {
-    final db = await database;
-    return await db.insert('ingredients', ingredient.toMap());
-  }
-
-  Future<List<Ingredient>> getIngredients() async {
-    final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query('ingredients');
-    return List.generate(maps.length, (i) => Ingredient.fromMap(maps[i]));
-  }
-
-  Future<Ingredient?> getIngredient(int id) async {
-    final db = await database;
-    final List<Map<String, dynamic>> maps = await db.query(
-      'ingredients',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-    if (maps.isNotEmpty) {
-      return Ingredient.fromMap(maps.first);
-    }
-    return null;
-  }
-
-  Future<void> updateIngredient(Ingredient ingredient) async {
-    final db = await database;
-    await db.update(
-      'ingredients',
-      ingredient.toMap(),
-      where: 'id = ?',
-      whereArgs: [ingredient.id],
-    );
-  }
-
-  Future<void> deleteIngredient(int id) async {
-    final db = await database;
-    await db.delete(
-      'ingredients',
-      where: 'id = ?',
-      whereArgs: [id],
-    );
-  }
+  // Méthodes des ingrédients supprimées - maintenant gérés par Directus via IngredientService
 
   Future<void> close() async {
     final db = await database;

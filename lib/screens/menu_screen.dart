@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../services/recipe_service.dart';
 import '../models/recipe.dart';
-import '../models/user.dart';
 import 'login_screen.dart';
+import 'recipes_list_screen.dart';
+import 'recipe_detail_screen.dart';
+import 'ingredients_management_screen.dart';
+import 'categories_management_screen.dart';
 
 class MenuScreen extends StatefulWidget {
   const MenuScreen({super.key});
@@ -17,14 +20,12 @@ class _MenuScreenState extends State<MenuScreen> {
   final RecipeService _recipeService = RecipeService();
   List<Recipe> _recentRecipes = [];
   bool _isLoading = true;
-  User? _currentUser;
   bool _hasShownDebugInfo = false;
   String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _currentUser = _authService.currentUser;
   }
 
   @override
@@ -185,7 +186,12 @@ class _MenuScreenState extends State<MenuScreen> {
                             subtitle: recipe.subtitle != null ? Text(recipe.subtitle!) : null,
                             trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                             onTap: () {
-                              // Navigate to recipe detail
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => RecipeDetailScreen(recipe: recipe),
+                                ),
+                              );
                             },
                           ),
                         )),
@@ -201,9 +207,9 @@ class _MenuScreenState extends State<MenuScreen> {
                     'Créer, modifier et organiser vos recettes',
                     Icons.restaurant_menu,
                     () {
-                      // Navigate to recipes management
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Fonctionnalité en cours de développement')),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const RecipesListScreen()),
                       );
                     },
                   ),
@@ -214,9 +220,9 @@ class _MenuScreenState extends State<MenuScreen> {
                     'Ajouter et modifier la liste des ingrédients',
                     Icons.inventory_2,
                     () {
-                      // Navigate to ingredients management
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Fonctionnalité en cours de développement')),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const IngredientsManagementScreen()),
                       );
                     },
                   ),
@@ -227,9 +233,9 @@ class _MenuScreenState extends State<MenuScreen> {
                     'Organiser et modifier les catégories de recettes',
                     Icons.category,
                     () {
-                      // Navigate to categories management
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Fonctionnalité en cours de développement')),
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const CategoriesManagementScreen()),
                       );
                     },
                   ),

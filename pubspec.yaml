@@ -36,6 +36,7 @@ flutter:
 assets:
   - assets/images/
   - lib/category_fr.json
+  - lib/resources/
   - resources/
 
   

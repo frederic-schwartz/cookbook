@@ -20,14 +20,22 @@ class _StartupScreenState extends State<StartupScreen> {
   }
 
   Future<void> _checkAuthentication() async {
-    await _authService.initialize();
-    
-    if (mounted) {
-      if (_authService.isAuthenticated) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const MenuScreen()),
-        );
-      } else {
+    try {
+      await _authService.initialize();
+      
+      if (mounted) {
+        if (_authService.isAuthenticated) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const MenuScreen()),
+          );
+        } else {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const LoginScreen()),
         );

@@ -1,25 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/services.dart';
-import '../models/ingredient.dart';
 import '../models/category.dart';
 import 'database_service.dart';
 
 class DataMigrationService {
   final DatabaseService _dbService = DatabaseService();
 
-  Future<void> migrateIngredientsFromJson() async {
-    try {
-      final String jsonString = await rootBundle.loadString('resources/ingredients_fr.json');
-      final List<dynamic> ingredientsList = jsonDecode(jsonString);
-      
-      for (final ingredientData in ingredientsList) {
-        final ingredient = Ingredient.fromJson(ingredientData);
-        await _dbService.insertIngredient(ingredient);
-      }
-    } catch (e) {
-      // Handle error silently or log
-    }
-  }
+  // Migration des ingrédients supprimée - maintenant gérés par Directus
 
   Future<void> migrateCategoriesFromJson() async {
     try {
@@ -60,16 +47,18 @@ class DataMigrationService {
   }
 
   Future<bool> shouldMigrate() async {
-    final ingredients = await _dbService.getIngredients();
     final categories = await _dbService.getCategories();
     
-    return ingredients.isEmpty && categories.isEmpty;
+    return categories.isEmpty;
   }
 
   Future<void> performInitialMigration() async {
-    if (await shouldMigrate()) {
-      await migrateCategoriesFromJson();
-      await migrateIngredientsFromJson();
+    try {
+      if (await shouldMigrate()) {
+        await migrateCategoriesFromJson();
+      }
+    } catch (e) {
+      // Migration error handled silently
     }
   }
 }

@@ -76,47 +76,76 @@ class RecipeService {
     }
   }
 
-  Future<Recipe?> createRecipe(Recipe recipe) async {
-    try {
-      final currentUser = _authService.currentUser;
-      if (currentUser?.cookbookId == null) {
-        throw Exception('Cookbook ID not found');
-      }
+  Future<Recipe> createRecipe(Recipe recipe) async {
+    final currentUser = _authService.currentUser;
+    
+    if (currentUser?.cookbookId == null) {
+      throw Exception('Cookbook ID not found');
+    }
 
-      final recipeData = recipe.toJson();
-      recipeData['id_cookbook'] = currentUser!.cookbookId;
+    // Créer seulement les données nécessaires, sans les champs système
+    final recipeData = <String, dynamic>{
+      'id_cookbook': currentUser!.cookbookId,
+      'title': recipe.title,
+      'subtitle': recipe.subtitle,
+      'preparation_time': recipe.preparationTime,
+      'cooking_time': recipe.cookingTime,
+      'id_category': recipe.idCategory,
+      'difficulty_level': recipe.difficultyLevel,
+      'tags': recipe.tags,
+      'cost': recipe.cost,
+      'presentation_text': recipe.presentationText,
+      'number_people': recipe.numberPeople,
+      'is_shared_everyone': recipe.isSharedEveryone,
+      'internal_comment': recipe.internalComment,
+      'resting_time': recipe.restingTime,
+      'photo': recipe.photo,
+    };
 
-      final response = await _authService.authenticatedRequest(
-        'POST',
-        '/items/recipes',
-        body: recipeData,
-      );
+    final response = await _authService.authenticatedRequest(
+      'POST',
+      '/items/recipes',
+      body: recipeData,
+    );
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        final data = jsonDecode(response.body);
-        return Recipe.fromJson(data['data']);
-      }
-      return null;
-    } catch (e) {
-      return null;
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      final data = jsonDecode(response.body);
+      return Recipe.fromJson(data['data']);
+    } else {
+      throw Exception('Erreur lors de la création de la recette: ${response.statusCode} - ${response.body}');
     }
   }
 
-  Future<Recipe?> updateRecipe(Recipe recipe) async {
-    try {
-      final response = await _authService.authenticatedRequest(
-        'PATCH',
-        '/items/recipes/${recipe.id}',
-        body: recipe.toJson(),
-      );
+  Future<Recipe> updateRecipe(Recipe recipe) async {
+    // Pour la modification, ne pas envoyer les champs système
+    final recipeData = <String, dynamic>{
+      'title': recipe.title,
+      'subtitle': recipe.subtitle,
+      'preparation_time': recipe.preparationTime,
+      'cooking_time': recipe.cookingTime,
+      'id_category': recipe.idCategory,
+      'difficulty_level': recipe.difficultyLevel,
+      'tags': recipe.tags,
+      'cost': recipe.cost,
+      'presentation_text': recipe.presentationText,
+      'number_people': recipe.numberPeople,
+      'is_shared_everyone': recipe.isSharedEveryone,
+      'internal_comment': recipe.internalComment,
+      'resting_time': recipe.restingTime,
+      'photo': recipe.photo,
+    };
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return Recipe.fromJson(data['data']);
-      }
-      return null;
-    } catch (e) {
-      return null;
+    final response = await _authService.authenticatedRequest(
+      'PATCH',
+      '/items/recipes/${recipe.id}',
+      body: recipeData,
+    );
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return Recipe.fromJson(data['data']);
+    } else {
+      throw Exception('Erreur lors de la mise à jour de la recette: ${response.statusCode} - ${response.body}');
     }
   }
 
