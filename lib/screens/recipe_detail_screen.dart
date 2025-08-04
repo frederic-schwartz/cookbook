@@ -336,8 +336,18 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                       )
                     else
                       ..._recipeIngredients.map((recipeIngredient) {
-                        final ingredientName = _getIngredientName(recipeIngredient.idIngredient);
-                        final ingredientArticle = _getIngredientArticle(recipeIngredient.idIngredient);
+                        final String ingredientName;
+                        final String ingredientArticle;
+                        
+                        if (recipeIngredient.isCustomIngredient) {
+                          // Ingrédient personnalisé
+                          ingredientName = recipeIngredient.customIngredientName ?? 'Ingrédient personnalisé';
+                          ingredientArticle = ''; // Pas d'article pour les ingrédients personnalisés
+                        } else {
+                          // Ingrédient de la base de données
+                          ingredientName = _getIngredientName(recipeIngredient.idIngredient);
+                          ingredientArticle = _getIngredientArticle(recipeIngredient.idIngredient);
+                        }
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 4.0),
                           child: Row(

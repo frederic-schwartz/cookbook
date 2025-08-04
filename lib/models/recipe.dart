@@ -107,6 +107,8 @@ class RecipeIngredient {
   final String idRecipe;
   final String idCookbook;
   final String? additionalInformation;
+  final bool isCustomIngredient;
+  final String? customIngredientName;
 
   RecipeIngredient({
     required this.id,
@@ -121,6 +123,8 @@ class RecipeIngredient {
     required this.idRecipe,
     required this.idCookbook,
     this.additionalInformation,
+    this.isCustomIngredient = false,
+    this.customIngredientName,
   });
 
   factory RecipeIngredient.fromJson(Map<String, dynamic> json) {
@@ -130,13 +134,15 @@ class RecipeIngredient {
       dateCreated: DateTime.parse(json['date_created']),
       userUpdated: json['user_updated'],
       dateUpdated: json['date_updated'] != null ? DateTime.parse(json['date_updated']) : null,
-      idIngredient: json['id_ingredient'].toString(),
+      idIngredient: json['id_ingredient']?.toString() ?? '',
       quantity: json['quantity'],
       unit: json['unit'],
       article: json['article'],
       idRecipe: json['id_recipe'],
       idCookbook: json['id_cookbook'],
       additionalInformation: json['additional_information'],
+      isCustomIngredient: json['is_custom_ingredient'] ?? false,
+      customIngredientName: json['custom_ingredient_name'],
     );
   }
 
@@ -154,6 +160,8 @@ class RecipeIngredient {
       'id_recipe': idRecipe,
       'id_cookbook': idCookbook,
       'additional_information': additionalInformation,
+      'is_custom_ingredient': isCustomIngredient,
+      'custom_ingredient_name': customIngredientName,
     };
   }
 }

@@ -188,7 +188,19 @@ class RecipeService {
       }
 
       final ingredientData = ingredient.toJson();
-      ingredientData['id_cookbook'] = currentUser!.cookbookId;
+      // Ne pas envoyer les champs système pour la création
+      ingredientData.remove('id');
+      ingredientData.remove('user_created');
+      ingredientData.remove('date_created');
+      ingredientData.remove('user_updated');
+      ingredientData.remove('date_updated');
+      
+      // Pour les ingrédients personnalisés, ne pas envoyer id_ingredient s'il est vide
+      if (ingredient.isCustomIngredient && ingredientData['id_ingredient']?.isEmpty == true) {
+        ingredientData.remove('id_ingredient');
+      }
+      
+      print('Debug: Données à envoyer pour création ingrédient: $ingredientData');
 
       final response = await _authService.authenticatedRequest(
         'POST',
@@ -196,25 +208,38 @@ class RecipeService {
         body: ingredientData,
       );
 
+      print('Debug: Réponse création ingrédient: ${response.statusCode} - ${response.body}');
+
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
         return RecipeIngredient.fromJson(data['data']);
+      } else {
+        print('Debug: Erreur création ingrédient: ${response.statusCode} - ${response.body}');
       }
       return null;
     } catch (e) {
+      print('Debug: Exception lors création ingrédient: $e');
       return null;
     }
   }
 
   Future<RecipeIngredient?> updateRecipeIngredient(RecipeIngredient ingredient) async {
     try {
-      final ingredientData = {
-        'id_ingredient': ingredient.idIngredient,
+      final ingredientData = <String, dynamic>{
         'quantity': ingredient.quantity,
         'unit': ingredient.unit,
         'article': ingredient.article,
         'additional_information': ingredient.additionalInformation,
+        'is_custom_ingredient': ingredient.isCustomIngredient,
+        'custom_ingredient_name': ingredient.customIngredientName,
       };
+      
+      // Ajouter id_ingredient seulement s'il n'est pas vide
+      if (ingredient.idIngredient.isNotEmpty) {
+        ingredientData['id_ingredient'] = ingredient.idIngredient;
+      }
+
+      print('Debug: Données à envoyer pour mise à jour ingrédient: $ingredientData');
 
       final response = await _authService.authenticatedRequest(
         'PATCH',
@@ -222,12 +247,17 @@ class RecipeService {
         body: ingredientData,
       );
 
+      print('Debug: Réponse mise à jour ingrédient: ${response.statusCode} - ${response.body}');
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return RecipeIngredient.fromJson(data['data']);
+      } else {
+        print('Debug: Erreur mise à jour ingrédient: ${response.statusCode} - ${response.body}');
       }
       return null;
     } catch (e) {
+      print('Debug: Exception lors mise à jour ingrédient: $e');
       return null;
     }
   }
