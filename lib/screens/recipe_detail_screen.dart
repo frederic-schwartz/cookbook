@@ -23,6 +23,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   final CategoryService _categoryService = CategoryService();
   final StepService _stepService = StepService();
   
+  Recipe? _currentRecipe; // Pour stocker la recette mise à jour
   List<RecipeIngredient> _recipeIngredients = [];
   Map<String, String> _ingredientNames = {};
   Map<String, String> _ingredientArticles = {};
@@ -33,6 +34,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   @override
   void initState() {
     super.initState();
+    _currentRecipe = widget.recipe; // Initialiser avec la recette passée
     _loadRecipeData();
   }
 
@@ -42,18 +44,20 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     });
 
     try {
-      // Charger les ingrédients, catégories et étapes en parallèle
+      // Charger la recette mise à jour et les données associées en parallèle
       final futures = await Future.wait([
+        _recipeService.getRecipe(widget.recipe.id),
         _recipeService.getRecipeIngredients(widget.recipe.id),
         _ingredientService.getIngredients(),
         _categoryService.getCategories(),
         _stepService.getStepsByRecipe(widget.recipe.id),
       ]);
 
-      final ingredients = futures[0] as List<RecipeIngredient>;
-      final allIngredients = futures[1] as List;
-      final categories = futures[2] as List<Category>;
-      final steps = futures[3] as List<recipe_step.Step>;
+      final updatedRecipe = futures[0] as Recipe?;
+      final ingredients = futures[1] as List<RecipeIngredient>;
+      final allIngredients = futures[2] as List;
+      final categories = futures[3] as List<Category>;
+      final steps = futures[4] as List<recipe_step.Step>;
 
       // Précharger tous les noms et articles d'ingrédients
       final ingredientNamesMap = <String, String>{};
@@ -64,6 +68,10 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       }
       
       setState(() {
+        // Mettre à jour la recette si elle a été rechargée avec succès
+        if (updatedRecipe != null) {
+          _currentRecipe = updatedRecipe;
+        }
         _recipeIngredients = ingredients;
         _ingredientNames = ingredientNamesMap;
         _ingredientArticles = ingredientArticlesMap;
@@ -95,6 +103,9 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     if (categoryId == null) return 'Non catégorisé';
     return _categoryService.getCategoryPath(_categories, categoryId);
   }
+
+  // Getter pour la recette courante avec fallback
+  Recipe get currentRecipe => _currentRecipe ?? widget.recipe;
 
   String _formatDuration(int? minutes) {
     if (minutes == null || minutes == 0) return 'Non spécifié';
@@ -133,9 +144,16 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
   String _getCostText(int? cost) {
     if (cost == null) return 'Non spécifié';
-    final filledEuros = '€' * cost;
-    final emptyEuros = '€' * (3 - cost).clamp(0, 3);
-    return filledEuros + emptyEuros;
+    switch (cost) {
+      case 1:
+        return '€ - Économique';
+      case 2:
+        return '€€ - Moyen';
+      case 3:
+        return '€€€ - Cher';
+      default:
+        return 'Non spécifié';
+    }
   }
 
   String _formatQuantity(String quantity) {
@@ -158,13 +176,13 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.recipe.title),
+        title: Text(currentRecipe.title),
         actions: [
           IconButton(
             onPressed: () async {
               final result = await Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (context) => RecipeFormScreen(recipe: widget.recipe),
+                  builder: (context) => RecipeFormScreen(recipe: currentRecipe),
                 ),
               );
               
@@ -185,15 +203,15 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
           children: [
             // Titre et sous-titre
             Text(
-              widget.recipe.title,
+              currentRecipe.title,
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.bold,
               ),
             ),
-            if (widget.recipe.subtitle != null) ...[
+            if (currentRecipe.subtitle != null) ...[
               const SizedBox(height: 8),
               Text(
-                widget.recipe.subtitle!,
+                currentRecipe.subtitle!,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: Colors.grey[600],
                   fontStyle: FontStyle.italic,
@@ -223,14 +241,14 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                           child: _buildInfoItem(
                             Icons.schedule,
                             'Préparation',
-                            _formatDuration(widget.recipe.preparationTime),
+                            _formatDuration(currentRecipe.preparationTime),
                           ),
                         ),
                         Expanded(
                           child: _buildInfoItem(
                             Icons.whatshot,
                             'Cuisson',
-                            _formatDuration(widget.recipe.cookingTime),
+                            _formatDuration(currentRecipe.cookingTime),
                           ),
                         ),
                       ],
@@ -242,40 +260,40 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                           child: _buildInfoItem(
                             Icons.people,
                             'Personnes',
-                            widget.recipe.numberPeople?.toString() ?? 'Non spécifié',
+                            currentRecipe.numberPeople?.toString() ?? 'Non spécifié',
                           ),
                         ),
                         Expanded(
                           child: _buildInfoItem(
                             Icons.star,
                             'Difficulté',
-                            _getDifficultyText(widget.recipe.difficultyLevel),
-                            color: _getDifficultyColor(widget.recipe.difficultyLevel),
+                            _getDifficultyText(currentRecipe.difficultyLevel),
+                            color: _getDifficultyColor(currentRecipe.difficultyLevel),
                           ),
                         ),
                       ],
                     ),
-                    if (widget.recipe.cost != null) ...[
+                    if (currentRecipe.cost != null) ...[
                       const SizedBox(height: 16),
                       _buildInfoItem(
                         Icons.euro,
                         'Coût',
-                        _getCostText(widget.recipe.cost),
+                        _getCostText(currentRecipe.cost),
                       ),
                     ],
-                    if (widget.recipe.restingTime != null) ...[
+                    if (currentRecipe.restingTime != null) ...[
                       const SizedBox(height: 16),
                       _buildInfoItem(
                         Icons.timer,
                         'Temps de repos',
-                        _formatDuration(widget.recipe.restingTime),
+                        _formatDuration(currentRecipe.restingTime),
                       ),
                     ],
                     const SizedBox(height: 16),
                     _buildInfoItem(
                       Icons.category,
                       'Catégorie',
-                      _getCategoryName(widget.recipe.idCategory),
+                      _getCategoryName(currentRecipe.idCategory),
                     ),
                   ],
                 ),
@@ -285,7 +303,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
             const SizedBox(height: 16),
 
             // Présentation
-            if (widget.recipe.presentationText != null) ...[
+            if (currentRecipe.presentationText != null) ...[
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -300,7 +318,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        widget.recipe.presentationText!,
+                        currentRecipe.presentationText!,
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     ],
@@ -420,7 +438,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
             ],
 
             // Tags
-            if (widget.recipe.tags.isNotEmpty) ...[
+            if (currentRecipe.tags.isNotEmpty) ...[
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -437,7 +455,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                       Wrap(
                         spacing: 8,
                         runSpacing: 8,
-                        children: widget.recipe.tags.map((tag) => Container(
+                        children: currentRecipe.tags.map((tag) => Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             color: Theme.of(context).colorScheme.primary.withAlpha(25),
@@ -463,7 +481,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
             ],
 
             // Commentaire interne (si présent)
-            if (widget.recipe.internalComment != null) ...[
+            if (currentRecipe.internalComment != null) ...[
               Card(
                 color: Colors.amber[50],
                 child: Padding(
@@ -486,7 +504,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        widget.recipe.internalComment!,
+                        currentRecipe.internalComment!,
                         style: Theme.of(context).textTheme.bodyMedium,
                       ),
                     ],

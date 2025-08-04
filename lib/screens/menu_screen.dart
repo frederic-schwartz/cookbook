@@ -83,6 +83,42 @@ class _MenuScreenState extends State<MenuScreen> {
     }
   }
 
+  String _normalizeString(String input) {
+    // Normaliser la chaîne en supprimant les accents
+    return input
+        .toLowerCase()
+        .replaceAll('à', 'a')
+        .replaceAll('á', 'a')
+        .replaceAll('â', 'a')
+        .replaceAll('ã', 'a')
+        .replaceAll('ä', 'a')
+        .replaceAll('å', 'a')
+        .replaceAll('æ', 'ae')
+        .replaceAll('ç', 'c')
+        .replaceAll('è', 'e')
+        .replaceAll('é', 'e')
+        .replaceAll('ê', 'e')
+        .replaceAll('ë', 'e')
+        .replaceAll('ì', 'i')
+        .replaceAll('í', 'i')
+        .replaceAll('î', 'i')
+        .replaceAll('ï', 'i')
+        .replaceAll('ñ', 'n')
+        .replaceAll('ò', 'o')
+        .replaceAll('ó', 'o')
+        .replaceAll('ô', 'o')
+        .replaceAll('õ', 'o')
+        .replaceAll('ö', 'o')
+        .replaceAll('ø', 'o')
+        .replaceAll('œ', 'oe')
+        .replaceAll('ù', 'u')
+        .replaceAll('ú', 'u')
+        .replaceAll('û', 'u')
+        .replaceAll('ü', 'u')
+        .replaceAll('ý', 'y')
+        .replaceAll('ÿ', 'y');
+  }
+
   void _filterRecipes(String query) {
     setState(() {
       _applyFilters();
@@ -97,13 +133,18 @@ class _MenuScreenState extends State<MenuScreen> {
       filtered = filtered.where((recipe) => recipe.idCategory == _selectedCategoryFilter).toList();
     }
 
-    // Filtre par recherche textuelle
+    // Filtre par recherche textuelle (insensible aux accents)
     final query = _searchController.text;
     if (query.isNotEmpty) {
+      final normalizedQuery = _normalizeString(query);
       filtered = filtered.where((recipe) {
-        return recipe.title.toLowerCase().contains(query.toLowerCase()) ||
-               (recipe.subtitle?.toLowerCase().contains(query.toLowerCase()) ?? false) ||
-               recipe.tags.any((tag) => tag.toLowerCase().contains(query.toLowerCase()));
+        final normalizedTitle = _normalizeString(recipe.title);
+        final normalizedSubtitle = recipe.subtitle != null ? _normalizeString(recipe.subtitle!) : '';
+        final normalizedTags = recipe.tags.map((tag) => _normalizeString(tag)).toList();
+        
+        return normalizedTitle.contains(normalizedQuery) ||
+               normalizedSubtitle.contains(normalizedQuery) ||
+               normalizedTags.any((tag) => tag.contains(normalizedQuery));
       }).toList();
     }
 
