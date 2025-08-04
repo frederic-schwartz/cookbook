@@ -3,10 +3,35 @@ import 'package:flutter/services.dart';
 import '../models/recipe.dart';
 import '../models/category.dart';
 import '../models/step.dart' as recipe_step;
+import '../models/ingredient.dart';
 import '../services/recipe_service.dart';
 import '../services/auth_service.dart';
 import '../services/category_service.dart';
 import '../services/step_service.dart';
+import '../services/ingredient_service.dart';
+
+// Classe pour gérer les données d'un ingrédient dans le formulaire
+class _IngredientFormData {
+  Ingredient? ingredient;
+  String? recipeIngredientId; // ID de l'ingrédient de recette existant (pour les modifications)
+  final TextEditingController quantityController = TextEditingController();
+  final TextEditingController unitController = TextEditingController();
+  final TextEditingController additionalInfoController = TextEditingController();
+  String? selectedUnit;
+  
+  _IngredientFormData({this.ingredient, this.recipeIngredientId, String? quantity, String? unit, String? additionalInfo}) {
+    quantityController.text = quantity ?? '';
+    unitController.text = unit ?? '';
+    additionalInfoController.text = additionalInfo ?? '';
+    selectedUnit = unit;
+  }
+  
+  void dispose() {
+    quantityController.dispose();
+    unitController.dispose();
+    additionalInfoController.dispose();
+  }
+}
 
 class RecipeFormScreen extends StatefulWidget {
   final Recipe? recipe; // null pour création, recipe pour modification
@@ -23,6 +48,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
   final AuthService _authService = AuthService();
   final CategoryService _categoryService = CategoryService();
   final StepService _stepService = StepService();
+  final IngredientService _ingredientService = IngredientService();
 
   // Controllers pour les champs du formulaire
   final TextEditingController _titleController = TextEditingController();
@@ -43,6 +69,11 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
   List<Category> _categories = [];
   List<recipe_step.Step> _steps = [];
   final List<TextEditingController> _stepControllers = [];
+  
+  // Variables pour les ingrédients
+  List<Ingredient> _availableIngredients = [];
+  List<RecipeIngredient> _recipeIngredients = [];
+  List<_IngredientFormData> _ingredientFormData = [];
 
   @override
   void initState() {
@@ -52,21 +83,32 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
 
   Future<void> _loadCategories() async {
     try {
-      final categories = await _categoryService.getCategories();
+      final futures = await Future.wait([
+        _categoryService.getCategories(),
+        _ingredientService.getIngredients(),
+      ]);
+      
+      final categories = futures[0] as List<Category>;
+      final ingredients = futures[1] as List<Ingredient>;
+      
       setState(() {
         _categories = categories;
+        _availableIngredients = ingredients;
       });
       
-      // Peupler le formulaire après avoir chargé les catégories si on modifie une recette
+      // Peupler le formulaire après avoir chargé les données si on modifie une recette
       if (widget.recipe != null) {
         await _loadSteps();
+        await _loadRecipeIngredients();
         _populateForm();
       } else {
         // Ajouter une étape vide pour les nouvelles recettes
         _addStep();
+        // Ajouter un ingrédient vide pour les nouvelles recettes
+        _addIngredient();
       }
     } catch (e) {
-      // Gérer l'erreur de chargement des catégories
+      // Gérer l'erreur de chargement des données
     }
   }
 
@@ -85,6 +127,41 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
       });
     } catch (e) {
       // Gérer l'erreur de chargement des étapes
+    }
+  }
+
+  Future<void> _loadRecipeIngredients() async {
+    if (widget.recipe == null) return;
+    
+    try {
+      final recipeIngredients = await _recipeService.getRecipeIngredients(widget.recipe!.id);
+      setState(() {
+        _recipeIngredients = recipeIngredients;
+        _ingredientFormData.clear();
+        for (final recipeIngredient in recipeIngredients) {
+          final ingredient = _availableIngredients.firstWhere(
+            (ing) => ing.id == recipeIngredient.idIngredient,
+            orElse: () => Ingredient(
+              id: recipeIngredient.idIngredient,
+              userCreated: '',
+              dateCreated: DateTime.now(),
+              singularName: 'Ingrédient inconnu',
+              article: '',
+              units: [],
+            ),
+          );
+          final formData = _IngredientFormData(
+            ingredient: ingredient,
+            recipeIngredientId: recipeIngredient.id,
+            quantity: recipeIngredient.quantity,
+            unit: recipeIngredient.unit,
+            additionalInfo: recipeIngredient.additionalInformation,
+          );
+          _ingredientFormData.add(formData);
+        }
+      });
+    } catch (e) {
+      // Gérer l'erreur de chargement des ingrédients
     }
   }
 
@@ -186,6 +263,39 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     }
   }
 
+  void _addIngredient() {
+    setState(() {
+      _ingredientFormData.add(_IngredientFormData());
+    });
+  }
+
+  void _removeIngredient(int index) {
+    setState(() {
+      if (_ingredientFormData.length > 1) {
+        _ingredientFormData[index].dispose();
+        _ingredientFormData.removeAt(index);
+      }
+    });
+  }
+
+  void _moveIngredientUp(int index) {
+    if (index > 0) {
+      setState(() {
+        final formData = _ingredientFormData.removeAt(index);
+        _ingredientFormData.insert(index - 1, formData);
+      });
+    }
+  }
+
+  void _moveIngredientDown(int index) {
+    if (index < _ingredientFormData.length - 1) {
+      setState(() {
+        final formData = _ingredientFormData.removeAt(index);
+        _ingredientFormData.insert(index + 1, formData);
+      });
+    }
+  }
+
   @override
   void dispose() {
     _titleController.dispose();
@@ -199,6 +309,9 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     _internalCommentController.dispose();
     for (final controller in _stepControllers) {
       controller.dispose();
+    }
+    for (final formData in _ingredientFormData) {
+      formData.dispose();
     }
     super.dispose();
   }
@@ -263,6 +376,9 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
 
       // Sauvegarder les étapes
       await _saveSteps(savedRecipe.id, currentUser);
+      
+      // Sauvegarder les ingrédients
+      await _saveIngredients(savedRecipe.id, currentUser);
 
       if (mounted) {
         Navigator.of(context).pop(true); // Retourner true pour indiquer une sauvegarde réussie
@@ -310,6 +426,75 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
           order: i + 1,
         );
         await _stepService.createStep(step);
+      }
+    }
+  }
+
+  Future<void> _saveIngredients(String recipeId, currentUser) async {
+    // Récupérer la liste des ingrédients existants pour les modifications
+    List<RecipeIngredient> existingIngredients = [];
+    if (widget.recipe != null) {
+      existingIngredients = await _recipeService.getRecipeIngredients(recipeId);
+    }
+
+    // Créer une liste des IDs d'ingrédients de recette qui seront conservés
+    final Set<String> preservedIds = {};
+
+    // Traiter chaque ingrédient du formulaire
+    for (final formData in _ingredientFormData) {
+      final quantity = formData.quantityController.text.trim();
+      if (formData.ingredient != null && quantity.isNotEmpty) {
+        final unit = formData.selectedUnit ?? formData.unitController.text.trim();
+        final additionalInfo = formData.additionalInfoController.text.trim().isEmpty 
+            ? null 
+            : formData.additionalInfoController.text.trim();
+
+        if (formData.recipeIngredientId != null) {
+          // Mettre à jour un ingrédient existant
+          final recipeIngredient = RecipeIngredient(
+            id: formData.recipeIngredientId!,
+            userCreated: currentUser.id,
+            dateCreated: DateTime.now(),
+            userUpdated: currentUser.id,
+            dateUpdated: DateTime.now(),
+            idIngredient: formData.ingredient!.id,
+            quantity: quantity,
+            unit: unit.isEmpty ? null : unit,
+            article: formData.ingredient!.article,
+            idRecipe: recipeId,
+            idCookbook: currentUser.cookbookId!,
+            additionalInformation: additionalInfo,
+          );
+          await _recipeService.updateRecipeIngredient(recipeIngredient);
+          preservedIds.add(formData.recipeIngredientId!);
+        } else {
+          // Créer un nouvel ingrédient
+          final recipeIngredient = RecipeIngredient(
+            id: '', // Sera généré par l'API
+            userCreated: currentUser.id,
+            dateCreated: DateTime.now(),
+            idIngredient: formData.ingredient!.id,
+            quantity: quantity,
+            unit: unit.isEmpty ? null : unit,
+            article: formData.ingredient!.article,
+            idRecipe: recipeId,
+            idCookbook: currentUser.cookbookId!,
+            additionalInformation: additionalInfo,
+          );
+          final createdIngredient = await _recipeService.addRecipeIngredient(recipeIngredient);
+          if (createdIngredient != null) {
+            // Mettre à jour l'ID pour les futures modifications
+            formData.recipeIngredientId = createdIngredient.id;
+            preservedIds.add(createdIngredient.id);
+          }
+        }
+      }
+    }
+
+    // Supprimer les ingrédients qui ne sont plus dans le formulaire
+    for (final existing in existingIngredients) {
+      if (!preservedIds.contains(existing.id)) {
+        await _recipeService.deleteRecipeIngredient(existing.id);
       }
     }
   }
@@ -410,6 +595,200 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     );
     
     return stepWidgets;
+  }
+
+  List<Widget> _buildIngredientsSection() {
+    List<Widget> ingredientWidgets = [];
+    
+    for (int i = 0; i < _ingredientFormData.length; i++) {
+      final formData = _ingredientFormData[i];
+      
+      ingredientWidgets.add(
+        Card(
+          margin: const EdgeInsets.only(bottom: 8.0),
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    // Numéro de l'ingrédient
+                    Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).primaryColor,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: Text(
+                          '${i + 1}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    
+                    // Sélection de l'ingrédient
+                    Expanded(
+                      flex: 3,
+                      child: DropdownButtonFormField<Ingredient>(
+                        value: formData.ingredient,
+                        decoration: const InputDecoration(
+                          labelText: 'Ingrédient',
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                        items: _availableIngredients.map((ingredient) {
+                          return DropdownMenuItem<Ingredient>(
+                            value: ingredient,
+                            child: Text(ingredient.displayName),
+                          );
+                        }).toList(),
+                        onChanged: (ingredient) {
+                          setState(() {
+                            formData.ingredient = ingredient;
+                            // Réinitialiser l'unité sélectionnée si nouvel ingrédient
+                            if (ingredient != null && ingredient.units.isNotEmpty) {
+                              formData.selectedUnit = ingredient.units.first;
+                              formData.unitController.text = ingredient.units.first;
+                            } else {
+                              formData.selectedUnit = null;
+                              formData.unitController.text = '';
+                            }
+                          });
+                        },
+                        validator: (value) {
+                          if (value == null) {
+                            return 'Sélectionnez un ingrédient';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    
+                    // Boutons d'action
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Bouton monter
+                        IconButton(
+                          onPressed: i > 0 ? () => _moveIngredientUp(i) : null,
+                          icon: const Icon(Icons.keyboard_arrow_up),
+                          iconSize: 20,
+                        ),
+                        // Bouton descendre
+                        IconButton(
+                          onPressed: i < _ingredientFormData.length - 1 ? () => _moveIngredientDown(i) : null,
+                          icon: const Icon(Icons.keyboard_arrow_down),
+                          iconSize: 20,
+                        ),
+                        // Bouton supprimer
+                        IconButton(
+                          onPressed: _ingredientFormData.length > 1 ? () => _removeIngredient(i) : null,
+                          icon: const Icon(Icons.delete, color: Colors.red),
+                          iconSize: 20,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                
+                // Quantité et unité
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: TextFormField(
+                        controller: formData.quantityController,
+                        decoration: const InputDecoration(
+                          labelText: 'Quantité',
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Quantité obligatoire';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    
+                    Expanded(
+                      flex: 2,
+                      child: formData.ingredient != null && formData.ingredient!.units.isNotEmpty
+                          ? DropdownButtonFormField<String>(
+                              value: formData.selectedUnit,
+                              decoration: const InputDecoration(
+                                labelText: 'Unité',
+                                border: OutlineInputBorder(),
+                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              ),
+                              items: formData.ingredient!.units.map((unit) {
+                                return DropdownMenuItem<String>(
+                                  value: unit,
+                                  child: Text(unit),
+                                );
+                              }).toList(),
+                              onChanged: (unit) {
+                                setState(() {
+                                  formData.selectedUnit = unit;
+                                  formData.unitController.text = unit ?? '';
+                                });
+                              },
+                            )
+                          : TextFormField(
+                              controller: formData.unitController,
+                              decoration: const InputDecoration(
+                                labelText: 'Unité',
+                                border: OutlineInputBorder(),
+                                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              ),
+                            ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                
+                // Informations additionnelles
+                TextFormField(
+                  controller: formData.additionalInfoController,
+                  decoration: const InputDecoration(
+                    labelText: 'Informations additionnelles (optionnel)',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    hintText: 'Ex: coupés en dés, épluché...',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+    
+    // Bouton pour ajouter un ingrédient
+    ingredientWidgets.add(
+      Padding(
+        padding: const EdgeInsets.only(top: 8.0),
+        child: OutlinedButton.icon(
+          onPressed: _addIngredient,
+          icon: const Icon(Icons.add),
+          label: const Text('Ajouter un ingrédient'),
+        ),
+      ),
+    );
+    
+    return ingredientWidgets;
   }
 
   @override
@@ -618,6 +997,19 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                   hintText: 'Séparez les tags par des virgules (ex: dessert, chocolat, facile)',
                 ),
               ),
+              const SizedBox(height: 24),
+
+              // Ingrédients
+              Text(
+                'Ingrédients',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              
+              ..._buildIngredientsSection(),
+              
               const SizedBox(height: 24),
 
               // Étapes

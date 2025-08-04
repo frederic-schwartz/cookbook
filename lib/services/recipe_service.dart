@@ -206,6 +206,32 @@ class RecipeService {
     }
   }
 
+  Future<RecipeIngredient?> updateRecipeIngredient(RecipeIngredient ingredient) async {
+    try {
+      final ingredientData = {
+        'id_ingredient': ingredient.idIngredient,
+        'quantity': ingredient.quantity,
+        'unit': ingredient.unit,
+        'article': ingredient.article,
+        'additional_information': ingredient.additionalInformation,
+      };
+
+      final response = await _authService.authenticatedRequest(
+        'PATCH',
+        '/items/recipes_ingredients/${ingredient.id}',
+        body: ingredientData,
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return RecipeIngredient.fromJson(data['data']);
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   Future<bool> deleteRecipeIngredient(String id) async {
     try {
       final response = await _authService.authenticatedRequest(
