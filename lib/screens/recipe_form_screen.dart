@@ -87,13 +87,11 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
   bool _isSharedEveryone = false;
   bool _isLoading = false;
   List<Category> _categories = [];
-  List<recipe_step.Step> _steps = [];
   final List<TextEditingController> _stepControllers = [];
   
   // Variables pour les ingrédients
   List<Ingredient> _availableIngredients = [];
-  List<RecipeIngredient> _recipeIngredients = [];
-  List<_IngredientFormData> _ingredientFormData = [];
+  final List<_IngredientFormData> _ingredientFormData = [];
 
   @override
   void initState() {
@@ -138,7 +136,6 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     try {
       final steps = await _stepService.getStepsByRecipe(widget.recipe!.id);
       setState(() {
-        _steps = steps;
         _stepControllers.clear();
         for (final step in steps) {
           final controller = TextEditingController(text: step.description);
@@ -156,7 +153,6 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     try {
       final recipeIngredients = await _recipeService.getRecipeIngredients(widget.recipe!.id);
       setState(() {
-        _recipeIngredients = recipeIngredients;
         _ingredientFormData.clear();
         for (final recipeIngredient in recipeIngredients) {
           Ingredient? ingredient;
@@ -485,14 +481,11 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
   }
 
   Future<void> _saveIngredients(String recipeId, currentUser) async {
-    print('Debug: Début de la sauvegarde des ingrédients pour recette $recipeId');
-    print('Debug: Nombre d\'éléments dans _ingredientFormData: ${_ingredientFormData.length}');
 
     // Récupérer la liste des ingrédients existants pour les modifications
     List<RecipeIngredient> existingIngredients = [];
     if (widget.recipe != null) {
       existingIngredients = await _recipeService.getRecipeIngredients(recipeId);
-      print('Debug: Ingrédients existants trouvés: ${existingIngredients.length}');
     }
 
     // Créer une liste des IDs d'ingrédients de recette qui seront conservés
@@ -504,7 +497,6 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
       final quantity = formData.quantityController.text.trim();
       final ingredientName = formData.ingredientController.text.trim();
       
-      print('Debug: Ingrédient $i - ingredient: ${formData.ingredient?.displayName ?? ingredientName}, quantity: "$quantity"');
       
       if (quantity.isNotEmpty && ingredientName.isNotEmpty) {
         final unit = formData.selectedUnit ?? formData.unitController.text.trim();
@@ -512,18 +504,15 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
             ? null 
             : formData.additionalInfoController.text.trim();
 
-        print('Debug: Unit: "$unit", AdditionalInfo: "$additionalInfo"');
 
         // Déterminer si c'est un ingrédient personnalisé ou de la base
         final bool isCustom = formData.ingredient == null;
         final String idIngredient = isCustom ? '' : formData.ingredient!.id;
         final String? article = isCustom ? null : formData.ingredient!.article;
         
-        print('Debug: isCustom: $isCustom, idIngredient: "$idIngredient", ingredientName: "$ingredientName"');
 
         if (formData.recipeIngredientId != null) {
           // Mettre à jour un ingrédient existant
-          print('Debug: Mise à jour ingrédient existant ID: ${formData.recipeIngredientId}');
           final recipeIngredient = RecipeIngredient(
             id: formData.recipeIngredientId!,
             userCreated: currentUser.id,
@@ -540,12 +529,10 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
             isCustomIngredient: isCustom,
             customIngredientName: isCustom ? ingredientName : null,
           );
-          final result = await _recipeService.updateRecipeIngredient(recipeIngredient);
-          print('Debug: Résultat mise à jour: ${result != null ? "succès" : "échec"}');
+          await _recipeService.updateRecipeIngredient(recipeIngredient);
           preservedIds.add(formData.recipeIngredientId!);
         } else {
           // Créer un nouvel ingrédient
-          print('Debug: Création nouvel ingrédient pour recette $recipeId (custom: $isCustom)');
           final recipeIngredient = RecipeIngredient(
             id: '', // Sera généré par l'API
             userCreated: currentUser.id,
@@ -561,7 +548,6 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
             customIngredientName: isCustom ? ingredientName : null,
           );
           final createdIngredient = await _recipeService.addRecipeIngredient(recipeIngredient);
-          print('Debug: Ingrédient créé: ${createdIngredient != null ? createdIngredient.id : "échec"}');
           if (createdIngredient != null) {
             // Mettre à jour l'ID pour les futures modifications
             formData.recipeIngredientId = createdIngredient.id;
@@ -870,7 +856,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                                     value: unit,
                                     child: Text(unit),
                                   );
-                                }).toList(),
+                                }),
                               ],
                               onChanged: (unit) {
                                 setState(() {

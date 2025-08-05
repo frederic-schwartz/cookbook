@@ -200,7 +200,6 @@ class RecipeService {
         ingredientData.remove('id_ingredient');
       }
       
-      print('Debug: Données à envoyer pour création ingrédient: $ingredientData');
 
       final response = await _authService.authenticatedRequest(
         'POST',
@@ -208,17 +207,14 @@ class RecipeService {
         body: ingredientData,
       );
 
-      print('Debug: Réponse création ingrédient: ${response.statusCode} - ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
         return RecipeIngredient.fromJson(data['data']);
       } else {
-        print('Debug: Erreur création ingrédient: ${response.statusCode} - ${response.body}');
       }
       return null;
     } catch (e) {
-      print('Debug: Exception lors création ingrédient: $e');
       return null;
     }
   }
@@ -239,7 +235,6 @@ class RecipeService {
         ingredientData['id_ingredient'] = ingredient.idIngredient;
       }
 
-      print('Debug: Données à envoyer pour mise à jour ingrédient: $ingredientData');
 
       final response = await _authService.authenticatedRequest(
         'PATCH',
@@ -247,17 +242,14 @@ class RecipeService {
         body: ingredientData,
       );
 
-      print('Debug: Réponse mise à jour ingrédient: ${response.statusCode} - ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return RecipeIngredient.fromJson(data['data']);
       } else {
-        print('Debug: Erreur mise à jour ingrédient: ${response.statusCode} - ${response.body}');
       }
       return null;
     } catch (e) {
-      print('Debug: Exception lors mise à jour ingrédient: $e');
       return null;
     }
   }

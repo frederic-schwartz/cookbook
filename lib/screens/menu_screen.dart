@@ -251,10 +251,11 @@ class _MenuScreenState extends State<MenuScreen> {
             ),
             TextButton(
               onPressed: () async {
-                Navigator.of(context).pop();
+                final navigator = Navigator.of(context);
+                navigator.pop();
                 await _authService.logout();
                 if (mounted) {
-                  Navigator.of(context).pushReplacement(
+                  navigator.pushReplacement(
                     MaterialPageRoute(builder: (context) => const LoginScreen()),
                   );
                 }
